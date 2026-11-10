@@ -21,8 +21,8 @@ android {
         applicationId = "de.kewl.pipidy"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     dependenciesInfo {
@@ -72,7 +72,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
-    implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.core)
+    implementation(libs.androidx.foundation)
     implementation(libs.kotlinx.coroutines.android)
 }

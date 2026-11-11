@@ -84,7 +84,7 @@ class YeelightClient(private val host: String) {
     /** The lamp also pushes state changes on this connection, so everything that is not our answer is skipped. */
     private fun readReply(reader: BufferedReader, id: Int): JSONArray {
         while (true) {
-            val line = reader.readLine() ?: throw YeelightException("Verbindung getrennt")
+            val line = reader.readLine() ?: throw YeelightException("connection closed")
             val reply = try {
                 JSONObject(line)
             } catch (_: JSONException) {

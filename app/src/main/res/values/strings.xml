@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Pipidy</string>
+
+    <!-- General -->
+    <string name="back">Back</string>
+    <string name="ok">OK</string>
+    <string name="refresh">Refresh</string>
+    <string name="edit">Edit</string>
+    <string name="about">About</string>
+    <string name="open">Open</string>
+    <string name="state_open">open</string>
+    <string name="state_closed">closed</string>
+    <string name="looking_for_lamp">Looking for the lamp …</string>
+
+    <!-- Dashboard -->
+    <string name="dash_title">Lamps</string>
+    <string name="dash_count">%1$d of %2$d on</string>
+    <string name="power_on">On</string>
+    <string name="power_off">Off</string>
+    <string name="power_offline">Unreachable</string>
+    <string name="switch_on">Switch %1$s on</string>
+    <string name="switch_off">Switch %1$s off</string>
+    <string name="first_lamp">First lamp</string>
+    <string name="new_lamp">New lamp</string>
+
+    <!-- Lamp kinds -->
+    <string name="kind_pipi">Pipi lamp</string>
+    <string name="kind_yeelight" translatable="false">Yeelight</string>
+
+    <!-- Lamp form -->
+    <string name="form_add">Add</string>
+    <string name="form_which">Which lamp?</string>
+    <string name="form_pipi_hint">Mijia, with token</string>
+    <string name="form_yeelight_hint">LAN control</string>
+    <string name="form_name">Name</string>
+    <string name="form_name_hint">e.g. desk</string>
+    <string name="form_ip">IP address</string>
+    <string name="form_token">Token (32 characters)</string>
+    <string name="form_pipi_note">Pipidy talks to the lamp directly in your network. Nothing goes to the internet.</string>
+    <string name="form_yeelight_note">LAN control has to be switched on for the lamp in the Yeelight app.</string>
+    <string name="form_found">Found in your Wi-Fi</string>
+    <string name="form_none_found">No Yeelight found. You can also enter the IP address by hand.</string>
+    <string name="form_searching">Searching</string>
+    <string name="form_search">Search Wi-Fi</string>
+    <string name="form_save">Save</string>
+    <string name="form_cancel">Cancel</string>
+    <string name="form_remove">Remove lamp</string>
+    <string name="form_remove_confirm">Really remove?</string>
+
+    <!-- Light -->
+    <string name="light">Light</string>
+    <string name="switched_on">Switched on</string>
+    <string name="brightness">Brightness</string>
+    <string name="colour_temp">Colour temperature</string>
+    <string name="colour">Colour</string>
+    <string name="hue">Hue</string>
+    <string name="saturation">Saturation</string>
+
+    <!-- Pipi lamp -->
+    <string name="mode_normal">Normal</string>
+    <string name="mode_night">Night light</string>
+    <string name="mode_warm">Warm</string>
+    <string name="mode_computer">Computer</string>
+    <string name="mode_office">Office</string>
+    <string name="mode_entertainment">Entertainment</string>
+    <string name="remote">Remote control</string>
+    <string name="remote_hint">Hold the dot in the circle and the head turns that way.</string>
+    <string name="centre_head">Centre</string>
+    <string name="calibrate">Calibrate</string>
+    <string name="motions">Motions</string>
+    <string name="no_motions">The lamp reports no motions.</string>
+    <string name="motion_n">Motion %1$d</string>
+    <string name="behaviour">Behaviour</string>
+    <string name="gestures">Recognise gestures</string>
+    <string name="follow">Follow along</string>
+    <string name="personality">Personality</string>
+    <string name="personality_clingy">Clingy</string>
+    <string name="personality_noble">Noble</string>
+    <string name="mood">Mood: %1$d</string>
+    <string name="last_gesture">Last gesture: %1$s</string>
+    <string name="timer">Sleep timer</string>
+    <string name="timer_active">Active, %1$d min left</string>
+    <string name="timer_off">Off</string>
+    <string name="minutes">%1$d min</string>
+    <string name="firmware">Firmware %1$s</string>
+
+    <string name="pad_up">Up</string>
+    <string name="pad_down">Down</string>
+    <string name="pad_left">Left</string>
+    <string name="pad_right">Right</string>
+
+    <string name="motion_0">Happy</string>
+    <string name="motion_1">Surprised</string>
+    <string name="motion_2">Disgusted</string>
+    <string name="motion_3">Angry</string>
+    <string name="motion_4">Sad</string>
+    <string name="motion_5">Scared</string>
+    <string name="motion_6">Sleep</string>
+    <string name="motion_7">Greet</string>
+    <string name="motion_8">Play dead</string>
+    <string name="motion_9">Light dance 1</string>
+    <string name="motion_10">Light dance 2</string>
+    <string name="motion_11">Wink</string>
+    <string name="motion_12">Nod</string>
+    <string name="motion_13">Shake head</string>
+
+    <string name="gesture_five">Five</string>
+    <string name="gesture_four">Four</string>
+    <string name="gesture_three">Three</string>
+    <string name="gesture_love">Love</string>
+    <string name="gesture_rock">Rock</string>
+    <string name="gesture_peace">Peace</string>
+    <string name="gesture_gun">Gun</string>
+    <string name="gesture_six">Six</string>
+    <string name="gesture_one">One</string>
+    <string name="gesture_pinky">Little finger</string>
+    <string name="gesture_thumbs_up">Thumbs up</string>
+    <string name="gesture_ok">OK</string>
+    <string name="gesture_fist">Fist</string>
+    <string name="gesture_heart">Heart</string>
+    <string name="gesture_shoot">Shoot</string>
+    <string name="gesture_open_hand">Open hand</string>
+    <string name="gesture_make_fist">Make a fist</string>
+    <string name="gesture_pinch">Pinch</string>
+
+    <!-- Errors -->
+    <string name="err_garbled">The answer from “%1$s” was garbled (%2$s).</string>
+    <string name="err_no_answer">“%1$s” does not answer. Are you on your home Wi-Fi?</string>
+    <string name="err_token">The token does not match “%1$s”.</string>
+    <string name="err_refused_yeelight">“%1$s” refuses the connection. Is LAN control switched on in the Yeelight app?</string>
+    <string name="err_rejected">“%1$s” rejected the command (%2$s).</string>
+    <string name="err_no_connection">No connection to “%1$s” (%2$s).</string>
+
+    <!-- About -->
+    <string name="about_title">About Pipidy</string>
+    <string name="about_kicker">Info</string>
+    <string name="about_tagline">Controls Mijia Pipi lamps and Yeelights directly in your Wi-Fi, without a cloud.</string>
+    <string name="version">Version %1$s</string>
+    <string name="about_feedback">Feedback</string>
+    <string name="report_bug">Report a bug</string>
+    <string name="request_feature">Request a feature</string>
+    <string name="about_project">Project</string>
+    <string name="star_github">Star on GitHub</string>
+    <string name="view_source">View source</string>
+    <string name="support_project">Support the project</string>
+    <string name="update_section">Update</string>
+    <string name="check_update">Check for updates</string>
+    <string name="checking">Checking …</string>
+    <string name="up_to_date">You have the latest version.</string>
+    <string name="update_available">Update available: %1$s</string>
+    <string name="download">Download</string>
+    <string name="open_release">Open release page</string>
+    <string name="update_failed">Update check failed. Please try again.</string>
+    <string name="about_notes">Notes</string>
+    <string name="about_notes_text">Pipidy talks to your lamps only inside your home network and needs no account.\n\nA Pipi lamp accepts commands only after it has been added to Mi Home once. Its token can then be read with the Xiaomi Cloud Tokens Extractor. Yeelights only need LAN control switched on.\n\nPipidy is not affiliated with Xiaomi, Dreame or Yeelight.</string>
+</resources>

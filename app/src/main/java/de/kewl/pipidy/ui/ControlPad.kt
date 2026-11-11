@@ -23,7 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import de.kewl.pipidy.R
 import java.util.Locale
 
 /** Share of the pad width that the steering circle takes as its radius. */
@@ -134,12 +136,12 @@ fun ControlPad(
             drawCircle(Color.White.copy(alpha = 0.8f), knob, dot, style = Stroke(1.dp.toPx()))
         }
 
-        Label("Hoch", Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
-        Label("Runter", Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
-        Label("Links", Modifier.align(Alignment.CenterStart).padding(start = 12.dp).sideways(upwards = true))
-        Label("Rechts", Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).sideways(upwards = false))
+        Label(stringResource(R.string.pad_up), Modifier.align(Alignment.TopCenter).padding(top = 12.dp))
+        Label(stringResource(R.string.pad_down), Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp))
+        Label(stringResource(R.string.pad_left), Modifier.align(Alignment.CenterStart).padding(start = 12.dp).sideways(upwards = true))
+        Label(stringResource(R.string.pad_right), Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).sideways(upwards = false))
         Txt(
-            String.format(Locale.GERMAN, "X %+.2f   Y %+.2f", point.x, point.y),
+            String.format(Locale.getDefault(), "X %+.2f   Y %+.2f", point.x, point.y),
             Type.Mono.copy(fontSize = Type.Label.fontSize),
             Modifier.align(Alignment.BottomStart).padding(12.dp),
             color = Ink.Dim,

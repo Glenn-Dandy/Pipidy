@@ -1,11 +1,17 @@
 package de.kewl.pipidy.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,9 +67,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +82,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import de.kewl.pipidy.R
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -212,6 +221,41 @@ fun Panel(
     }
 }
 
+/** A panel whose content opens and closes by tapping its title row. */
+@Composable
+fun FoldPanel(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val turn by animateFloatAsState(if (expanded) 90f else 0f, label = "fold")
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val state = stringResource(if (expanded) R.string.state_open else R.string.state_closed)
+    Column(modifier.fillMaxWidth().glass(strength = if (pressed) 1.6f else 1f)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(source, null, role = Role.Button, onClick = onToggle)
+                .semantics { stateDescription = state }
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Label(title, Modifier.weight(1f))
+            GlyphIcon(Glyph.Next, Ink.Dim, Modifier.size(16.dp).rotate(turn))
+        }
+        AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(
+                Modifier.padding(start = 18.dp, end = 18.dp, bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                content = content,
+            )
+        }
+    }
+}
+
 /** Screen frame: fixed header, loading line, scrolling content. */
 @Composable
 fun Page(
@@ -245,7 +289,7 @@ fun Page(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Txt(message, Type.Body, Modifier.weight(1f).padding(vertical = 8.dp))
-                    GlassButton("OK", onDismissError)
+                    GlassButton(stringResource(R.string.ok), onDismissError)
                 }
             }
             content()
@@ -257,7 +301,7 @@ fun Page(
 @Composable
 fun TitleBar(title: String, kicker: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        IconSquare(Glyph.Back, "Zurück", onBack)
+        IconSquare(Glyph.Back, stringResource(R.string.back), onBack)
         Column(Modifier.weight(1f).padding(start = 4.dp)) {
             Label(kicker)
             Txt(title, Type.Title, maxLines = 1)
@@ -335,7 +379,7 @@ fun Chip(text: String, selected: Boolean, onClick: () -> Unit, enabled: Boolean 
     }
 }
 
-enum class Glyph { Back, Plus, Power, Refresh, Tune }
+enum class Glyph { Back, Next, Plus, Power, Refresh, Tune, Info }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, modifier: Modifier = Modifier.size(20.dp)) {
@@ -359,6 +403,21 @@ fun GlyphIcon(glyph: Glyph, color: Color, modifier: Modifier = Modifier.size(20.
                 color,
                 style = stroke,
             )
+            Glyph.Next -> drawPath(
+                Path().apply {
+                    moveTo(w * 0.38f, w * 0.18f)
+                    lineTo(w * 0.70f, w * 0.5f)
+                    lineTo(w * 0.38f, w * 0.82f)
+                },
+                color,
+                style = stroke,
+            )
+            Glyph.Info -> {
+                drawRect(color, Offset(w * 0.455f, w * 0.12f), Size(w * 0.09f, w * 0.11f))
+                line(0.5f, 0.36f, 0.5f, 0.86f)
+                line(0.36f, 0.36f, 0.5f, 0.36f)
+                line(0.36f, 0.86f, 0.64f, 0.86f)
+            }
             Glyph.Power -> {
                 drawArc(color, -55f, 290f, false, Offset(w * 0.14f, w * 0.18f), Size(w * 0.72f, w * 0.72f), style = stroke)
                 line(0.5f, 0.06f, 0.5f, 0.46f)

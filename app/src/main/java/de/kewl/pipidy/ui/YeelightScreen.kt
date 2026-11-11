@@ -10,8 +10,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.kewl.pipidy.MainViewModel
+import de.kewl.pipidy.R
 import de.kewl.pipidy.UiState
 import de.kewl.pipidy.data.LampConfig
 
@@ -28,24 +30,24 @@ fun YeelightScreen(ui: UiState, vm: MainViewModel, lamp: LampConfig) {
         error = ui.error,
         onDismissError = vm::dismissError,
         header = {
-            TitleBar(lamp.name, lamp.kind.label, vm::back) {
-                IconSquare(Glyph.Refresh, "Aktualisieren", vm::refresh)
-                IconSquare(Glyph.Tune, "Bearbeiten", { vm.openEdit(lamp.id) })
+            TitleBar(lamp.name, stringResource(lamp.kind.label), vm::back) {
+                IconSquare(Glyph.Refresh, stringResource(R.string.refresh), vm::refresh)
+                IconSquare(Glyph.Tune, stringResource(R.string.edit), { vm.openEdit(lamp.id) })
             }
         },
     ) {
         val state = ui.yeelight
         if (state == null) {
-            if (ui.error == null) Txt("Lampe wird gesucht …", Type.Small, Modifier.padding(4.dp))
+            if (ui.error == null) Txt(stringResource(R.string.looking_for_lamp), Type.Small, Modifier.padding(4.dp))
             return@Page
         }
         // The lamp refuses brightness and colour while it is switched off.
-        Panel("Licht") {
-            SwitchRow("Eingeschaltet", state.on, { vm.setPower(lamp.id, it) })
-            ValueSlider("Helligkeit", state.brightness, 1, 100, " %", vm::setYeelightBrightness, enabled = state.on)
+        Panel(stringResource(R.string.light)) {
+            SwitchRow(stringResource(R.string.switched_on), state.on, { vm.setPower(lamp.id, it) })
+            ValueSlider(stringResource(R.string.brightness), state.brightness, 1, 100, " %", vm::setYeelightBrightness, enabled = state.on)
             state.colorTemp?.let { kelvin ->
                 ValueSlider(
-                    "Farbtemperatur",
+                    stringResource(R.string.colour_temp),
                     kelvin.coerceIn(YEELIGHT_MIN_KELVIN, YEELIGHT_MAX_KELVIN),
                     YEELIGHT_MIN_KELVIN,
                     YEELIGHT_MAX_KELVIN,
@@ -59,7 +61,7 @@ fun YeelightScreen(ui: UiState, vm: MainViewModel, lamp: LampConfig) {
         val hue = state.hue
         val saturation = state.saturation
         if (hue != null && saturation != null) {
-            Panel("Farbe") {
+            Panel(stringResource(R.string.colour)) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -68,7 +70,7 @@ fun YeelightScreen(ui: UiState, vm: MainViewModel, lamp: LampConfig) {
                         .border(1.dp, Color.White.copy(alpha = 0.4f))
                 )
                 ValueSlider(
-                    "Farbton",
+                    stringResource(R.string.hue),
                     hue.coerceIn(0, 359),
                     0,
                     359,
@@ -78,7 +80,7 @@ fun YeelightScreen(ui: UiState, vm: MainViewModel, lamp: LampConfig) {
                     track = RAINBOW,
                 )
                 ValueSlider(
-                    "Sättigung",
+                    stringResource(R.string.saturation),
                     saturation.coerceIn(0, 100),
                     0,
                     100,

@@ -58,7 +58,7 @@ class MiioClient(private val host: String, tokenHex: String) {
 
     private fun checkCode(entry: JSONObject) {
         val code = entry.optInt("code", 0)
-        if (code != 0) throw MiioException("Fehlercode $code")
+        if (code != 0) throw MiioException("code $code")
     }
 
     private suspend fun call(method: String, params: (String) -> Any): JSONObject = mutex.withLock {

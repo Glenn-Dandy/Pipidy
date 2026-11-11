@@ -22,9 +22,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import de.kewl.pipidy.MainViewModel
+import de.kewl.pipidy.R
 import de.kewl.pipidy.Power
 import de.kewl.pipidy.UiState
 import de.kewl.pipidy.data.LampConfig
@@ -38,18 +40,19 @@ fun DashboardScreen(ui: UiState, vm: MainViewModel) {
         error = ui.error,
         onDismissError = vm::dismissError,
         header = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f)) {
                     Txt("PIPIDY", Type.Wordmark)
-                    Txt("Lampen", Type.Display)
+                    Txt(stringResource(R.string.dash_title), Type.Display)
                 }
-                IconSquare(Glyph.Refresh, "Aktualisieren", vm::refresh)
+                IconSquare(Glyph.Info, stringResource(R.string.about), vm::openAbout)
+                IconSquare(Glyph.Refresh, stringResource(R.string.refresh), vm::refresh)
             }
         },
     ) {
         if (ui.lamps.isNotEmpty()) {
             val on = ui.lamps.count { ui.power[it.id] == Power.ON }
-            Label("$on von ${ui.lamps.size} an", Modifier.padding(bottom = 4.dp))
+            Label(stringResource(R.string.dash_count, on, ui.lamps.size), Modifier.padding(bottom = 4.dp))
         }
         val tiles: List<LampConfig?> = ui.lamps + null
         tiles.chunked(2).forEach { row ->
@@ -83,11 +86,11 @@ private fun LampTile(lamp: LampConfig, power: Power, onOpen: () -> Unit, onToggl
             .height(TILE_HEIGHT)
             .halo(Ink.Amber, on)
             .glass(if (on) Ink.Amber else Color.White, if (pressed) 1.8f else 1f)
-            .clickable(source, null, onClickLabel = "Öffnen", onClick = onOpen)
+            .clickable(source, null, onClickLabel = stringResource(R.string.open), onClick = onOpen)
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Label(lamp.kind.label, Modifier.weight(1f))
+            Label(stringResource(lamp.kind.label), Modifier.weight(1f))
             Box(
                 Modifier
                     .size(8.dp)
@@ -105,9 +108,9 @@ private fun LampTile(lamp: LampConfig, power: Power, onOpen: () -> Unit, onToggl
         Txt(lamp.name, Type.Title, maxLines = 2)
         Txt(
             when (power) {
-                Power.ON -> "An"
-                Power.OFF -> "Aus"
-                Power.OFFLINE -> "Nicht erreichbar"
+                Power.ON -> stringResource(R.string.power_on)
+                Power.OFF -> stringResource(R.string.power_off)
+                Power.OFFLINE -> stringResource(R.string.power_offline)
                 Power.UNKNOWN -> "…"
             },
             Type.Small,
@@ -122,6 +125,7 @@ private fun LampTile(lamp: LampConfig, power: Power, onOpen: () -> Unit, onToggl
 private fun PowerButton(on: Boolean, name: String, onToggle: () -> Unit) {
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
+    val description = stringResource(if (on) R.string.switch_off else R.string.switch_on, name)
     Box(
         Modifier
             .fillMaxWidth()
@@ -131,7 +135,7 @@ private fun PowerButton(on: Boolean, name: String, onToggle: () -> Unit) {
                 else Modifier.glass(strength = if (pressed) 2.2f else 1f)
             )
             .clickable(source, null, role = Role.Switch, onClick = onToggle)
-            .semantics { contentDescription = if (on) "$name ausschalten" else "$name einschalten" },
+            .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
         GlyphIcon(Glyph.Power, if (on) Ink.OnAmber else Ink.Text)
@@ -154,7 +158,7 @@ private fun AddTile(first: Boolean, onClick: () -> Unit, modifier: Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             GlyphIcon(Glyph.Plus, Ink.Text, Modifier.size(34.dp))
-            Label(if (first) "Erste Lampe" else "Neue Lampe")
+            Label(stringResource(if (first) R.string.first_lamp else R.string.new_lamp))
         }
     }
 }

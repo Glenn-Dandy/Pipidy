@@ -1,14 +1,16 @@
 package de.kewl.pipidy.data
 
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
+import de.kewl.pipidy.R
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.UUID
 
-enum class LampKind(val label: String) {
-    PIPI("Pipi-Lampe"),
-    YEELIGHT("Yeelight"),
+enum class LampKind(@StringRes val label: Int) {
+    PIPI(R.string.kind_pipi),
+    YEELIGHT(R.string.kind_yeelight),
 }
 
 data class LampConfig(

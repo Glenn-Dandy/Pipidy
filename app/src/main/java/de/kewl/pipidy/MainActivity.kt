@@ -12,6 +12,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import de.kewl.pipidy.data.LampKind
+import de.kewl.pipidy.ui.AboutScreen
 import de.kewl.pipidy.ui.Backdrop
 import de.kewl.pipidy.ui.DashboardScreen
 import de.kewl.pipidy.ui.LampFormScreen
@@ -36,6 +37,7 @@ class MainActivity : ComponentActivity() {
                     when (val screen = ui.screen) {
                         Screen.Dashboard -> DashboardScreen(ui, vm)
                         Screen.Add -> LampFormScreen(ui, vm, editing = null)
+                        Screen.About -> AboutScreen(vm)
                         is Screen.Edit -> ui.lamp(screen.id)?.let { LampFormScreen(ui, vm, editing = it) }
                         is Screen.Detail -> ui.lamp(screen.id)?.let { lamp ->
                             when (lamp.kind) {

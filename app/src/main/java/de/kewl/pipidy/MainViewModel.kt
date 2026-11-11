@@ -2,7 +2,9 @@ package de.kewl.pipidy
 
 import android.app.Application
 import android.content.Context
+import android.os.SystemClock
 import android.util.Base64
+import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.kewl.pipidy.data.LampConfig
@@ -17,6 +19,7 @@ import de.kewl.pipidy.yeelight.YeelightClient
 import de.kewl.pipidy.yeelight.YeelightException
 import de.kewl.pipidy.yeelight.YeelightState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONException
 import java.io.IOException
 import java.net.ConnectException
@@ -37,6 +41,7 @@ sealed interface Screen {
     data object Add : Screen
     data class Detail(val id: String) : Screen
     data class Edit(val id: String) : Screen
+    data object About : Screen
 }
 
 data class Motion(val id: Int, val name: String)
@@ -95,6 +100,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openEdit(id: String) = _ui.update { it.copy(screen = Screen.Edit(id), error = null, found = emptyList(), searched = false) }
+
+    fun openAbout() = _ui.update { it.copy(screen = Screen.About, error = null) }
 
     fun back() {
         when (val screen = _ui.value.screen) {
@@ -250,18 +257,77 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setTimerOn(on: Boolean) = pipi({ copy(timerOn = on) }, reload = true) { set(6, 4, if (on) 1 else 0) }
     fun setTimerMinutes(value: Int) = pipi({ copy(timerMinutes = value) }) { set(6, 5, value) }
 
-    // Remote control of the Pipi lamp is siid 8: a1 start, a2 end, a3 reset, p1 direction data.
+    // Head control as the Mi Home plugin of the lamp does it (plugin 1009694, version 33).
 
-    fun calibrate() = pipi({ this }) { action(8, 3, emptyList()) }
+    private var lastCalibration = 0L
 
-    /**
-     * The lamp takes any text as direction data and answers "ok" to all of it, so the format
-     * can only be found by watching the lamp. Until then the steering circle sends nothing.
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun steer(x: Float, y: Float) = Unit
+    /** "Position calibration" from the plugin settings: hidden service siid 99, action 5. */
+    fun calibrate() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastCalibration < CALIBRATE_GAP_MS) return
+        lastCalibration = now
+        pipi({ this }) { action(99, 5, emptyList()) }
+    }
 
-    fun steerEnd() = Unit
+    /** Turns the head back to the middle, the reset button of the plugin's remote control. */
+    fun centreHead() = pipi({ this }) { action(8, 3, emptyList()) }
+
+    // Remote control is siid 8: a1 start, a2 end, p1 direction as JSON "[h,v]" from -100 to 100,
+    // h to the right and v downwards, sent every 500 ms while held and "[0,0]" on release.
+
+    @Volatile private var steerValue = "[0,0]"
+    @Volatile private var steerHeld = false
+    private var steerJob: Job? = null
+
+    /** [x] and [y] from -1 to 1 with right and up positive, as the steering circle reports them. */
+    fun steer(x: Float, y: Float) {
+        steerValue = "[${toRemote(x)},${toRemote(-y)}]"
+        steerHeld = true
+        if (steerJob?.isActive == true) return
+        val lamp = shownLamp(LampKind.PIPI) ?: return
+        steerJob = viewModelScope.launch { remoteSession(lamp, miioOf(lamp)) }
+    }
+
+    fun steerEnd() {
+        steerHeld = false
+    }
+
+    private suspend fun remoteSession(lamp: LampConfig, client: MiioClient) {
+        try {
+            client.action(8, 1, emptyList())
+            var stopped = true
+            var idleSince = 0L
+            while (true) {
+                val started = SystemClock.elapsedRealtime()
+                if (steerHeld) {
+                    client.set(8, 1, steerValue)
+                    stopped = false
+                    idleSince = 0L
+                } else {
+                    if (!stopped) {
+                        client.set(8, 1, "[0,0]")
+                        stopped = true
+                    }
+                    if (idleSince == 0L) idleSince = started
+                    if (started - idleSince >= STEER_IDLE_MS) break
+                }
+                // Wait for the next tick, but answer a release right away.
+                val next = started + STEER_INTERVAL_MS
+                while (SystemClock.elapsedRealtime() < next && (steerHeld || stopped)) delay(STEER_POLL_MS)
+            }
+        } catch (e: IOException) {
+            _ui.update { it.copy(error = describe(lamp, e)) }
+        } catch (e: JSONException) {
+            _ui.update { it.copy(error = garbled(lamp, e)) }
+        } finally {
+            withContext(NonCancellable) {
+                runCatching { client.set(8, 1, "[0,0]") }
+                runCatching { client.action(8, 2, emptyList()) }
+            }
+        }
+    }
+
+    private fun toRemote(value: Float) = (value.coerceIn(-1f, 1f) * 100).toInt()
 
     private fun pipi(
         change: PipiState.() -> PipiState,
@@ -319,24 +385,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         else -> false
     }
 
-    private fun garbled(lamp: LampConfig, e: JSONException) =
-        "Die Antwort von „${lamp.name}“ war unverständlich (${e.message})."
+    private fun text(@StringRes id: Int, vararg args: Any?): String = getApplication<Application>().getString(id, *args)
 
-    private fun describe(lamp: LampConfig, e: IOException): String {
-        val name = "„${lamp.name}“"
-        return when (e) {
-            is MiioTimeoutException, is SocketTimeoutException, is NoRouteToHostException ->
-                "$name antwortet nicht. Bist du im WLAN zu Hause?"
-            is MiioTokenException -> "Der Token passt nicht zu $name."
-            is ConnectException ->
-                if (lamp.kind == LampKind.YEELIGHT) {
-                    "$name nimmt keine Verbindung an. Ist die LAN-Steuerung in der Yeelight-App eingeschaltet?"
-                } else {
-                    "$name antwortet nicht. Bist du im WLAN zu Hause?"
-                }
-            is MiioException, is YeelightException -> "$name hat den Befehl abgelehnt (${e.message})."
-            else -> "Keine Verbindung zu $name (${e.message})."
-        }
+    private fun garbled(lamp: LampConfig, e: JSONException) = text(R.string.err_garbled, lamp.name, e.message)
+
+    private fun describe(lamp: LampConfig, e: IOException): String = when (e) {
+        is MiioTimeoutException, is SocketTimeoutException, is NoRouteToHostException ->
+            text(R.string.err_no_answer, lamp.name)
+        is MiioTokenException -> text(R.string.err_token, lamp.name)
+        is ConnectException ->
+            if (lamp.kind == LampKind.YEELIGHT) text(R.string.err_refused_yeelight, lamp.name)
+            else text(R.string.err_no_answer, lamp.name)
+        is MiioException, is YeelightException -> text(R.string.err_rejected, lamp.name, e.message)
+        else -> text(R.string.err_no_connection, lamp.name, e.message)
     }
 
     private suspend fun readPipi(c: MiioClient): PipiState {
@@ -365,29 +426,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         raw.orEmpty().split(';').mapNotNull { item ->
             val parts = item.split('-', limit = 3)
             val id = parts.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
-            val name = MOTION_NAMES[id] ?: parts.getOrNull(2)?.let { encoded ->
+            val name = MOTION_NAMES[id]?.let { text(it) } ?: parts.getOrNull(2)?.let { encoded ->
                 runCatching { String(Base64.decode(encoded, Base64.DEFAULT)) }.getOrNull()
-            } ?: "Bewegung $id"
+            } ?: text(R.string.motion_n, id)
             Motion(id, name)
         }
 
     private companion object {
         const val READ_GAP_MS = 60L
+        const val CALIBRATE_GAP_MS = 1000L
+        const val STEER_INTERVAL_MS = 500L
+        const val STEER_POLL_MS = 40L
+        const val STEER_IDLE_MS = 3000L
         val MOTION_NAMES = mapOf(
-            0 to "Fröhlich",
-            1 to "Überrascht",
-            2 to "Angewidert",
-            3 to "Wütend",
-            4 to "Traurig",
-            5 to "Ängstlich",
-            6 to "Schlafen",
-            7 to "Grüßen",
-            8 to "Totstellen",
-            9 to "Lichttanz 1",
-            10 to "Lichttanz 2",
-            11 to "Zwinkern",
-            12 to "Nicken",
-            13 to "Kopf schütteln",
+            0 to R.string.motion_0,
+            1 to R.string.motion_1,
+            2 to R.string.motion_2,
+            3 to R.string.motion_3,
+            4 to R.string.motion_4,
+            5 to R.string.motion_5,
+            6 to R.string.motion_6,
+            7 to R.string.motion_7,
+            8 to R.string.motion_8,
+            9 to R.string.motion_9,
+            10 to R.string.motion_10,
+            11 to R.string.motion_11,
+            12 to R.string.motion_12,
+            13 to R.string.motion_13,
         )
     }
 }

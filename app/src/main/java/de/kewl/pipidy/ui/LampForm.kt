@@ -17,11 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import de.kewl.pipidy.DEFAULT_PIPI_HOST
 import de.kewl.pipidy.MainViewModel
+import de.kewl.pipidy.R
 import de.kewl.pipidy.UiState
 import de.kewl.pipidy.data.LampConfig
 import de.kewl.pipidy.data.LampKind
@@ -46,20 +48,20 @@ fun LampFormScreen(ui: UiState, vm: MainViewModel, editing: LampConfig?) {
         onDismissError = vm::dismissError,
         header = {
             TitleBar(
-                title = editing?.name ?: "Neue Lampe",
-                kicker = if (editing == null) "Hinzufügen" else "Bearbeiten",
+                title = editing?.name ?: stringResource(R.string.new_lamp),
+                kicker = stringResource(if (editing == null) R.string.form_add else R.string.edit),
                 onBack = vm::back,
             )
         },
     ) {
         if (editing == null) {
-            Label("Welche Lampe?", Modifier.padding(bottom = 2.dp))
+            Label(stringResource(R.string.form_which), Modifier.padding(bottom = 2.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                KindTile("Pipi-Lampe", "Mijia, mit Token", kind == LampKind.PIPI, Modifier.weight(1f)) {
+                KindTile(stringResource(R.string.kind_pipi), stringResource(R.string.form_pipi_hint), kind == LampKind.PIPI, Modifier.weight(1f)) {
                     kind = LampKind.PIPI
                     if (host.isBlank()) host = DEFAULT_PIPI_HOST
                 }
-                KindTile("Yeelight", "LAN-Steuerung", kind == LampKind.YEELIGHT, Modifier.weight(1f)) {
+                KindTile(stringResource(R.string.kind_yeelight), stringResource(R.string.form_yeelight_hint), kind == LampKind.YEELIGHT, Modifier.weight(1f)) {
                     if (kind == LampKind.PIPI && host == DEFAULT_PIPI_HOST) host = ""
                     kind = LampKind.YEELIGHT
                 }
@@ -68,25 +70,25 @@ fun LampFormScreen(ui: UiState, vm: MainViewModel, editing: LampConfig?) {
 
         val chosen = kind ?: return@Page
         Panel {
-            Field("Name", name, { name = it }, placeholder = "z. B. Schreibtisch")
-            Field("IP-Adresse", host, { host = it }, placeholder = "192.168.…", mono = true, keyboard = KeyboardType.Uri)
+            Field(stringResource(R.string.form_name), name, { name = it }, placeholder = stringResource(R.string.form_name_hint))
+            Field(stringResource(R.string.form_ip), host, { host = it }, placeholder = "192.168.…", mono = true, keyboard = KeyboardType.Uri)
             if (chosen == LampKind.PIPI) {
                 Field(
-                    "Token (32 Zeichen)",
+                    stringResource(R.string.form_token),
                     token,
                     { token = it },
                     mono = true,
                     error = token.isNotEmpty() && !tokenValid,
                     keyboard = KeyboardType.Ascii,
                 )
-                Txt("Pipidy spricht direkt mit der Lampe in deinem Netz. Es geht nichts ins Internet.", Type.Small)
+                Txt(stringResource(R.string.form_pipi_note), Type.Small)
             } else {
-                Txt("In der Yeelight-App muss bei der Lampe die LAN-Steuerung eingeschaltet sein.", Type.Small)
+                Txt(stringResource(R.string.form_yeelight_note), Type.Small)
             }
         }
 
         if (chosen == LampKind.YEELIGHT) {
-            Panel("Im WLAN gefunden") {
+            Panel(stringResource(R.string.form_found)) {
                 ui.found.forEach { found ->
                     FoundRow(found.host, listOf(found.name, found.model).filter { it.isNotBlank() }.joinToString(" · "), host == found.host) {
                         host = found.host
@@ -94,15 +96,15 @@ fun LampFormScreen(ui: UiState, vm: MainViewModel, editing: LampConfig?) {
                     }
                 }
                 if (ui.searched && ui.found.isEmpty() && !ui.searching) {
-                    Txt("Keine Yeelight gefunden. Du kannst die IP-Adresse auch von Hand eintragen.", Type.Small)
+                    Txt(stringResource(R.string.form_none_found), Type.Small)
                 }
-                GlassButton(if (ui.searching) "Suche läuft" else "Im WLAN suchen", vm::searchYeelights, enabled = !ui.searching)
+                GlassButton(stringResource(if (ui.searching) R.string.form_searching else R.string.form_search), vm::searchYeelights, enabled = !ui.searching)
             }
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             GlassButton(
-                if (editing == null) "Hinzufügen" else "Speichern",
+                stringResource(if (editing == null) R.string.form_add else R.string.form_save),
                 onClick = {
                     if (editing == null) vm.addLamp(name, chosen, host, token) else vm.updateLamp(editing.id, name, host, token)
                 },
@@ -110,12 +112,12 @@ fun LampFormScreen(ui: UiState, vm: MainViewModel, editing: LampConfig?) {
                 primary = true,
                 enabled = valid,
             )
-            GlassButton("Abbrechen", vm::back, Modifier.weight(1f))
+            GlassButton(stringResource(R.string.form_cancel), vm::back, Modifier.weight(1f))
         }
 
         if (editing != null) {
             GlassButton(
-                if (confirmRemove) "Wirklich entfernen?" else "Lampe entfernen",
+                stringResource(if (confirmRemove) R.string.form_remove_confirm else R.string.form_remove),
                 onClick = { if (confirmRemove) vm.removeLamp(editing.id) else confirmRemove = true },
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 tint = Ink.Red,

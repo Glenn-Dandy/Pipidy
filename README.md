@@ -1,6 +1,6 @@
 # Pipidy
 
-![Version](https://img.shields.io/badge/version-0.4.0-blue)
+![Version](https://img.shields.io/badge/version-0.4.1-blue)
 ![minSdk](https://img.shields.io/badge/minSdk-28-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 

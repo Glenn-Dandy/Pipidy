@@ -124,6 +124,19 @@ data class PathPoint(val x: Int, val y: Int, val light: Int = 0)
 const val PATH_STEP_MS = 50L
 const val PATH_MAX_STEPS = 600
 
+/** Positions are stored in steps of 2, which roughly halves the size of a busy path. */
+const val PATH_GRID = 2
+
+/**
+ * The lamp drops a request of more than about 1350 bytes without answering, so a written
+ * entry must stay well below that. Id and name of a motion take at most 40 characters.
+ */
+const val MAX_ENTRY_CHARS = 1150
+const val MAX_PATH_CHARS = MAX_ENTRY_CHARS - 40
+
+/** Snaps a position from -1 to 1 onto the grid of the stored path, -100 to 100. */
+fun pathValue(position: Float): Int = Math.round(position.coerceIn(-1f, 1f) * 100 / PATH_GRID) * PATH_GRID
+
 /** Three signed bytes per step, zlib-deflated, URL-safe Base64 with padding. */
 fun encodePath(points: List<PathPoint>): String {
     val raw = ByteArray(points.size * 3)
@@ -132,7 +145,7 @@ fun encodePath(points: List<PathPoint>): String {
         raw[i * 3 + 1] = p.y.coerceIn(-100, 100).toByte()
         raw[i * 3 + 2] = p.light.coerceIn(-128, 127).toByte()
     }
-    val deflater = Deflater()
+    val deflater = Deflater(Deflater.BEST_COMPRESSION)
     deflater.setInput(raw)
     deflater.finish()
     val out = ByteArrayOutputStream()

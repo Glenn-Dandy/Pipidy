@@ -116,13 +116,14 @@
     <string name="motion_record">Record new motion</string>
     <string name="motion_play">Play</string>
     <string name="record_title">Record</string>
-    <string name="record_hint">Press Start and move the dot. The head will follow the same path later. Tap a light below to switch the light at that moment. At most 30 seconds.</string>
+    <string name="record_hint">Press Start and move the dot. The head will follow the same path later. Tap a light below to switch the light at that moment. At most 30 seconds, less with a lot of movement, because the lamp only takes a limited amount.</string>
     <string name="record_start">Start</string>
     <string name="record_stop">Stop</string>
     <string name="record_again">Again</string>
     <string name="record_light">Light during the motion</string>
     <string name="record_light_off">Off</string>
-    <string name="record_time">%1$s of 0:30</string>
+    <string name="record_time">%1$s · memory %2$d %%</string>
+    <string name="record_full">The memory of the lamp for one motion is full, recording stopped.</string>
 
     <string name="character">Character</string>
     <string name="mood_now">Mood: %1$s</string>
@@ -251,6 +252,7 @@
     <string name="err_token">The token does not match “%1$s”.</string>
     <string name="err_refused_yeelight">“%1$s” refuses the connection. Is LAN control switched on in the Yeelight app?</string>
     <string name="err_rejected">“%1$s” rejected the command (%2$s).</string>
+    <string name="err_motion_too_long">The motion is too long for the lamp. Please record it shorter.</string>
     <string name="err_no_connection">No connection to “%1$s” (%2$s).</string>
 
     <!-- About -->

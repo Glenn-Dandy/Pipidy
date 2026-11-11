@@ -15,6 +15,7 @@ import de.kewl.pipidy.miio.MiioTimeoutException
 import de.kewl.pipidy.miio.MiioTokenException
 import de.kewl.pipidy.pipi.LampMotion
 import de.kewl.pipidy.pipi.LightMode
+import de.kewl.pipidy.pipi.MAX_ENTRY_CHARS
 import de.kewl.pipidy.pipi.PathPoint
 import de.kewl.pipidy.pipi.Schedule
 import de.kewl.pipidy.pipi.parseFaults
@@ -347,9 +348,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun saveMotion(name: String, path: List<PathPoint>) {
         val motions = _ui.value.pipi?.motions ?: return
         val id = (motions.maxOfOrNull { it.id } ?: 0) + 1
+        val entry = LampMotion.encode(id, name, path)
+        // The lamp silently drops longer requests, so say so instead of losing the motion.
+        if (entry.length > MAX_ENTRY_CHARS) {
+            _ui.update { it.copy(error = text(R.string.err_motion_too_long)) }
+            return
+        }
         back()
         pipi({ copy(motions = motions + Motion(id, name, custom = true)) }, reload = true) {
-            set(5, 1, LampMotion.encode(id, name, path))
+            set(5, 1, entry)
         }
     }
 

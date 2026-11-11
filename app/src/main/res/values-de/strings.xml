@@ -113,13 +113,14 @@
     <string name="motion_record">Neue Bewegung aufnehmen</string>
     <string name="motion_play">Abspielen</string>
     <string name="record_title">Aufnehmen</string>
-    <string name="record_hint">Start drücken und den Punkt bewegen. Der Kopf fährt später denselben Weg. Tippe unten auf ein Licht, um es in diesem Moment umzuschalten. Höchstens 30 Sekunden.</string>
+    <string name="record_hint">Start drücken und den Punkt bewegen. Der Kopf fährt später denselben Weg. Tippe unten auf ein Licht, um es in diesem Moment umzuschalten. Höchstens 30 Sekunden, bei viel Bewegung weniger, weil die Lampe nur eine begrenzte Menge annimmt.</string>
     <string name="record_start">Start</string>
     <string name="record_stop">Stopp</string>
     <string name="record_again">Neu</string>
     <string name="record_light">Licht während der Bewegung</string>
     <string name="record_light_off">Aus</string>
-    <string name="record_time">%1$s von 0:30</string>
+    <string name="record_time">%1$s · Speicher %2$d %%</string>
+    <string name="record_full">Der Speicher der Lampe für eine Bewegung ist voll, die Aufnahme ist beendet.</string>
 
     <string name="character">Charakter</string>
     <string name="mood_now">Laune: %1$s</string>
@@ -248,6 +249,7 @@
     <string name="err_token">Der Token passt nicht zu „%1$s“.</string>
     <string name="err_refused_yeelight">„%1$s“ nimmt keine Verbindung an. Ist die LAN-Steuerung in der Yeelight-App eingeschaltet?</string>
     <string name="err_rejected">„%1$s“ hat den Befehl abgelehnt (%2$s).</string>
+    <string name="err_motion_too_long">Die Bewegung ist zu lang für die Lampe. Bitte kürzer aufnehmen.</string>
     <string name="err_no_connection">Keine Verbindung zu „%1$s“ (%2$s).</string>
 
     <!-- Über -->

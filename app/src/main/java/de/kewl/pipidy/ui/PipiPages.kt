@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import de.kewl.pipidy.MainViewModel
 import de.kewl.pipidy.PipiPage
 import de.kewl.pipidy.PipiState
@@ -34,11 +35,14 @@ import de.kewl.pipidy.UiState
 import de.kewl.pipidy.data.LampConfig
 import de.kewl.pipidy.pipi.LightMode
 import de.kewl.pipidy.pipi.MAX_NAME_UNITS
+import de.kewl.pipidy.pipi.MAX_PATH_CHARS
 import de.kewl.pipidy.pipi.PATH_MAX_STEPS
 import de.kewl.pipidy.pipi.PATH_STEP_MS
 import de.kewl.pipidy.pipi.PathPoint
 import de.kewl.pipidy.pipi.Schedule
+import de.kewl.pipidy.pipi.encodePath
 import de.kewl.pipidy.pipi.nameUnits
+import de.kewl.pipidy.pipi.pathValue
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -370,7 +374,8 @@ private fun nameProblem(name: String, taken: List<String>): Int? = when {
 }
 
 /**
- * Records a head path like the plugin does: one step every 50 ms, at most 30 seconds.
+ * Records a head path like the plugin does: one step every 50 ms, at most 30 seconds,
+ * and stops early when the path would no longer fit into one request to the lamp.
  * The dot in the circle is where the head looks; a light chip switches the light in that step.
  */
 @Composable
@@ -382,10 +387,21 @@ private fun RecordPage(state: PipiState, vm: MainViewModel) {
     var light by remember { mutableIntStateOf(0) }
     var name by rememberSaveable { mutableStateOf("") }
 
+    // Characters the path takes so far; the lamp ignores entries that are too long.
+    var used by remember { mutableIntStateOf(0) }
+    var full by remember { mutableStateOf(false) }
+
     LaunchedEffect(recording) {
         if (!recording) return@LaunchedEffect
         while (path.size < PATH_MAX_STEPS) {
-            path.add(PathPoint((position.x * 100).toInt(), (-position.y * 100).toInt(), light))
+            path.add(PathPoint(pathValue(position.x), pathValue(-position.y), light))
+            val size = encodePath(path).length
+            if (size > MAX_PATH_CHARS) {
+                path.removeAt(path.lastIndex)
+                full = true
+                break
+            }
+            used = size
             light = 0
             steps = path.size
             delay(PATH_STEP_MS)
@@ -399,7 +415,11 @@ private fun RecordPage(state: PipiState, vm: MainViewModel) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val seconds = steps * PATH_STEP_MS / 1000
             Txt(
-                stringResource(R.string.record_time, String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60)),
+                stringResource(
+                    R.string.record_time,
+                    String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60),
+                    used * 100 / MAX_PATH_CHARS,
+                ),
                 Type.Mono,
                 Modifier.weight(1f),
                 color = if (recording) Ink.Red else Ink.Dim,
@@ -410,10 +430,13 @@ private fun RecordPage(state: PipiState, vm: MainViewModel) {
                 else -> GlassButton(stringResource(R.string.record_again), {
                     path.clear()
                     steps = 0
+                    used = 0
+                    full = false
                     recording = true
                 })
             }
         }
+        if (full) Txt(stringResource(R.string.record_full), Type.Small, color = Ink.Amber)
     }
     Panel(stringResource(R.string.record_light)) {
         Chips {
@@ -442,32 +465,35 @@ private fun RecordPage(state: PipiState, vm: MainViewModel) {
 private fun GuidePage() {
     Panel(stringResource(R.string.guide_gestures)) {
         Txt(stringResource(R.string.guide_hint), Type.Small)
-        listOf(
-            R.string.guide_gesture_1 to R.string.guide_gesture_1_text,
-            R.string.guide_gesture_2 to R.string.guide_gesture_2_text,
-            R.string.guide_gesture_3 to R.string.guide_gesture_3_text,
-            R.string.guide_gesture_4 to R.string.guide_gesture_4_text,
-        ).forEach { (title, text) -> GuideEntry(title, text) }
+        GuideEntry("\uD83D\uDD90\uFE0F", R.string.guide_gesture_1, R.string.guide_gesture_1_text) // raised hand
+        GuideEntry("\u270A", R.string.guide_gesture_2, R.string.guide_gesture_2_text) // fist
+        GuideEntry("\uD83E\uDD0F", R.string.guide_gesture_3, R.string.guide_gesture_3_text) // pinch
+        GuideEntry("\uD83D\uDC4C", R.string.guide_gesture_4, R.string.guide_gesture_4_text) // OK
     }
     Panel(stringResource(R.string.guide_games)) {
-        listOf(
-            R.string.game_1 to R.string.game_1_text,
-            R.string.game_2 to R.string.game_2_text,
-            R.string.game_3 to R.string.game_3_text,
-            R.string.game_4 to R.string.game_4_text,
-            R.string.game_5 to R.string.game_5_text,
-            R.string.game_6 to R.string.game_6_text,
-        ).forEach { (title, text) -> GuideEntry(title, text) }
+        GuideEntry("\uD83D\uDC4D", R.string.game_1, R.string.game_1_text) // thumbs up
+        GuideEntry("\u270A", R.string.game_2, R.string.game_2_text) // fist
+        GuideEntry("\uD83D\uDC40", R.string.game_3, R.string.game_3_text) // eyes
+        GuideEntry("\uD83E\uDD18", R.string.game_4, R.string.game_4_text) // rock
+        GuideEntry("\uD83E\uDD1F", R.string.game_5, R.string.game_5_text) // love you
+        GuideEntry("\uD83D\uDC46", R.string.game_6, R.string.game_6_text) // tap
     }
 }
 
+/** Emoji on the left, its top in line with the heading; the text runs on beside it. */
 @Composable
-private fun GuideEntry(title: Int, text: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Txt(stringResource(title), Type.Body, color = Ink.Amber)
-        Txt(stringResource(text), Type.Small)
+private fun GuideEntry(emoji: String, title: Int, text: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Txt(emoji, EMOJI)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Txt(stringResource(title), Type.Body, color = Ink.Amber)
+            Txt(stringResource(text), Type.Small)
+        }
     }
 }
+
+/** A little larger than the headings next to it. */
+private val EMOJI = Type.Body.copy(fontSize = 21.sp, lineHeight = 21.sp)
 
 /** Asks once more before it acts. */
 @Composable

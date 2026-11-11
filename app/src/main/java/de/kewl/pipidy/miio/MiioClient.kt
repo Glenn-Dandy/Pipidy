@@ -40,6 +40,21 @@ class MiioClient(private val host: String, tokenHex: String) {
         return entry.opt("value")
     }
 
+    /** Reads several properties in one request. Entries the lamp refuses come back as null. */
+    suspend fun getAll(props: List<Pair<Int, Int>>): List<Any?> {
+        val body = call("get_properties") { id ->
+            JSONArray().apply {
+                props.forEach { (siid, piid) -> put(JSONObject().put("did", id).put("siid", siid).put("piid", piid)) }
+            }
+        }
+        val result = body.getJSONArray("result")
+        val entries = (0 until result.length()).map { result.getJSONObject(it) }
+        return props.map { (siid, piid) ->
+            entries.firstOrNull { it.optInt("siid") == siid && it.optInt("piid") == piid && it.optInt("code", 0) == 0 }
+                ?.opt("value")
+        }
+    }
+
     suspend fun set(siid: Int, piid: Int, value: Any) {
         val body = call("set_properties") { id ->
             JSONArray().put(JSONObject().put("did", id).put("siid", siid).put("piid", piid).put("value", value))
@@ -141,7 +156,7 @@ class MiioClient(private val host: String, tokenHex: String) {
         const val MAGIC: Short = 0x2131
         const val TIMEOUT_MS = 1200
         const val ATTEMPTS = 4
-        const val RECEIVE_SIZE = 4096
+        const val RECEIVE_SIZE = 16384
         val HELLO = byteArrayOf(0x21, 0x31, 0x00, 0x20) + ByteArray(28) { 0xFF.toByte() }
     }
 }

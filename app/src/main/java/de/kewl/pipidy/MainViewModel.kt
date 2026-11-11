@@ -3,7 +3,6 @@ package de.kewl.pipidy
 import android.app.Application
 import android.content.Context
 import android.os.SystemClock
-import android.util.Base64
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,6 +13,11 @@ import de.kewl.pipidy.miio.MiioClient
 import de.kewl.pipidy.miio.MiioException
 import de.kewl.pipidy.miio.MiioTimeoutException
 import de.kewl.pipidy.miio.MiioTokenException
+import de.kewl.pipidy.pipi.LampMotion
+import de.kewl.pipidy.pipi.LightMode
+import de.kewl.pipidy.pipi.PathPoint
+import de.kewl.pipidy.pipi.Schedule
+import de.kewl.pipidy.pipi.parseFaults
 import de.kewl.pipidy.yeelight.FoundYeelight
 import de.kewl.pipidy.yeelight.YeelightClient
 import de.kewl.pipidy.yeelight.YeelightException
@@ -42,23 +46,49 @@ sealed interface Screen {
     data class Detail(val id: String) : Screen
     data class Edit(val id: String) : Screen
     data object About : Screen
+    /** A page below the detail screen of a Pipi lamp. */
+    data class Sub(val id: String, val page: PipiPage) : Screen
 }
 
-data class Motion(val id: Int, val name: String)
+sealed interface PipiPage {
+    data object Modes : PipiPage
+    data class ModeEdit(val modeId: Int?) : PipiPage
+    data object Schedules : PipiPage
+    data class ScheduleEdit(val scheduleId: Int?) : PipiPage
+    data object Motions : PipiPage
+    data object Record : PipiPage
+    data object Guide : PipiPage
+}
+
+/** Lamp whose controls the screen shows, if any. */
+val Screen.lampId: String?
+    get() = when (this) {
+        is Screen.Detail -> id
+        is Screen.Sub -> id
+        else -> null
+    }
+
+data class Motion(val id: Int, val name: String, val custom: Boolean)
 
 data class PipiState(
+    /** siid 2 piid 1, the lamp is awake. */
     val on: Boolean,
-    val mode: Int,
+    /** siid 9 piid 2, the light itself. */
+    val lightOn: Boolean,
     val brightness: Int,
     val colorTemp: Int,
+    val modes: List<LightMode>,
     val mood: Int,
+    val birthday: String,
     val personality: Int,
-    val gesturesOn: Boolean,
+    val interactionOn: Boolean,
     val followOn: Boolean,
     val lastGesture: Int,
     val timerOn: Boolean,
     val timerMinutes: Int,
     val timerLeft: Int,
+    val schedules: List<Schedule>,
+    val faults: List<Int>,
     val firmware: String,
     val motions: List<Motion>,
 )
@@ -103,10 +133,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openAbout() = _ui.update { it.copy(screen = Screen.About, error = null) }
 
+    /** Opens a page of the Pipi lamp that is shown right now. */
+    fun openPage(page: PipiPage) {
+        val id = _ui.value.screen.lampId ?: return
+        _ui.update { it.copy(screen = Screen.Sub(id, page), error = null) }
+    }
+
     fun back() {
         when (val screen = _ui.value.screen) {
             Screen.Dashboard -> return
             is Screen.Edit -> _ui.update { it.copy(screen = Screen.Detail(screen.id), error = null) }
+            is Screen.Sub -> {
+                val parent = when (screen.page) {
+                    is PipiPage.ModeEdit -> Screen.Sub(screen.id, PipiPage.Modes)
+                    is PipiPage.ScheduleEdit -> Screen.Sub(screen.id, PipiPage.Schedules)
+                    PipiPage.Record -> Screen.Sub(screen.id, PipiPage.Motions)
+                    else -> Screen.Detail(screen.id)
+                }
+                _ui.update { it.copy(screen = parent, error = null) }
+            }
             else -> {
                 _ui.update { it.copy(screen = Screen.Dashboard, pipi = null, yeelight = null, error = null) }
                 refresh()
@@ -169,9 +214,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshJob = viewModelScope.launch {
             _ui.update { it.copy(busy = true) }
             try {
-                when (val screen = _ui.value.screen) {
-                    is Screen.Detail -> loadDetail(screen.id)
-                    else -> loadPower()
+                when (val id = _ui.value.screen.lampId) {
+                    null -> loadPower()
+                    else -> loadDetail(id)
                 }
             } finally {
                 if (run == refreshRun) _ui.update { it.copy(busy = false) }
@@ -200,7 +245,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun loadDetail(id: String) {
         val lamp = _ui.value.lamp(id) ?: return
-        fun shown(state: UiState) = state.screen == Screen.Detail(id)
+        fun shown(state: UiState) = state.screen.lampId == id
         try {
             when (lamp.kind) {
                 LampKind.PIPI -> {
@@ -229,15 +274,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setPower(id: String, on: Boolean) {
         val lamp = _ui.value.lamp(id) ?: return
+        val shown = _ui.value.screen.lampId == id
         _ui.update {
-            val shown = it.screen == Screen.Detail(id)
             it.copy(
                 power = it.power + (id to powerOf(on)),
-                pipi = if (shown) it.pipi?.copy(on = on) else it.pipi,
+                pipi = if (shown) it.pipi?.copy(on = on, lightOn = on) else it.pipi,
                 yeelight = if (shown) it.yeelight?.copy(on = on) else it.yeelight,
             )
         }
-        send(lamp) {
+        // The Pipi lamp changes mood and light along with it, so read it again.
+        send(lamp, reload = shown && lamp.kind == LampKind.PIPI) {
             when (lamp.kind) {
                 LampKind.PIPI -> miioOf(lamp).set(2, 1, on)
                 LampKind.YEELIGHT -> yeelightOf(lamp).setPower(on)
@@ -249,13 +295,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setBrightness(value: Int) = pipi({ copy(brightness = value) }) { set(2, 3, value) }
     fun setColorTemp(value: Int) = pipi({ copy(colorTemp = value) }) { set(2, 5, value) }
-    fun setMode(value: Int) = pipi({ copy(mode = value) }, reload = true) { set(2, 2, value) }
+    fun setLight(on: Boolean) = pipi({ copy(lightOn = on) }, reload = true) { set(9, 2, if (on) 1 else 0) }
     fun runMotion(id: Int) = pipi({ this }) { action(5, 2, listOf(2 to id)) }
-    fun setGestures(on: Boolean) = pipi({ copy(gesturesOn = on) }) { set(7, 1, if (on) 1 else 0) }
+    fun setInteraction(on: Boolean) = pipi({ copy(interactionOn = on) }) { set(7, 1, if (on) 1 else 0) }
     fun setFollow(on: Boolean) = pipi({ copy(followOn = on) }) { set(7, 3, if (on) 1 else 0) }
     fun setPersonality(value: Int) = pipi({ copy(personality = value) }) { set(3, 3, value) }
+    fun setBirthday(date: String) = pipi({ copy(birthday = date) }) { set(3, 2, date) }
     fun setTimerOn(on: Boolean) = pipi({ copy(timerOn = on) }, reload = true) { set(6, 4, if (on) 1 else 0) }
     fun setTimerMinutes(value: Int) = pipi({ copy(timerMinutes = value) }) { set(6, 5, value) }
+
+    // Light modes (siid 4): the list in piid 1, a written entry adds or replaces the mode with its id.
+
+    fun applyMode(id: Int) = pipi({ copy(modes = modes.map { it.copy(active = it.id == id) }) }, reload = true) {
+        action(4, 3, listOf(2 to id))
+    }
+
+    /** Saves [mode], or a new mode when its id is 0. Goes back to the list. */
+    fun saveMode(mode: LightMode) {
+        val modes = _ui.value.pipi?.modes ?: return
+        val entry = if (mode.id != 0) mode else mode.copy(
+            id = LightMode.freeId(modes) ?: return,
+            sort = (modes.maxOfOrNull { it.sort } ?: 0) + 1,
+            active = false,
+            builtIn = false,
+        )
+        back()
+        pipi({ copy(modes = modes.filterNot { it.id == entry.id } + entry) }, reload = true) { set(4, 1, entry.encode()) }
+    }
+
+    fun deleteMode(id: Int) = pipi({ copy(modes = modes.filterNot { it.id == id }) }, reload = true) {
+        action(4, 1, listOf(2 to id.toString()))
+    }
+
+    // Schedules (siid 6 piid 2), same pattern. The lamp only runs them when it knows the time.
+
+    fun saveSchedule(schedule: Schedule) {
+        val schedules = _ui.value.pipi?.schedules ?: return
+        val entry = if (schedule.id != 0) schedule else schedule.copy(id = Schedule.nextId(schedules))
+        if (_ui.value.screen.let { it is Screen.Sub && it.page is PipiPage.ScheduleEdit }) back()
+        pipi({ copy(schedules = schedules.filterNot { it.id == entry.id } + entry) }, reload = true) {
+            set(6, 2, entry.encode())
+        }
+    }
+
+    fun deleteSchedule(id: Int) = pipi({ copy(schedules = schedules.filterNot { it.id == id }) }, reload = true) {
+        action(6, 1, listOf(3 to id.toString()))
+    }
+
+    // Own motions (siid 5): recorded head paths, stored on the lamp.
+
+    fun saveMotion(name: String, path: List<PathPoint>) {
+        val motions = _ui.value.pipi?.motions ?: return
+        val id = (motions.maxOfOrNull { it.id } ?: 0) + 1
+        back()
+        pipi({ copy(motions = motions + Motion(id, name, custom = true)) }, reload = true) {
+            set(5, 1, LampMotion.encode(id, name, path))
+        }
+    }
+
+    fun renameMotion(id: Int, name: String) =
+        pipi({ copy(motions = motions.map { if (it.id == id) it.copy(name = name) else it }) }, reload = true) {
+            set(5, 1, LampMotion.encode(id, name, null))
+        }
+
+    fun deleteMotion(id: Int) = pipi({ copy(motions = motions.filterNot { it.id == id }) }, reload = true) {
+        action(5, 1, listOf(2 to id.toString()))
+    }
 
     // Head control as the Mi Home plugin of the lamp does it (plugin 1009694, version 33).
 
@@ -355,8 +460,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // Plumbing
 
     private fun shownLamp(kind: LampKind): LampConfig? {
-        val screen = _ui.value.screen as? Screen.Detail ?: return null
-        return _ui.value.lamp(screen.id)?.takeIf { it.kind == kind }
+        val id = _ui.value.screen.lampId ?: return null
+        return _ui.value.lamp(id)?.takeIf { it.kind == kind }
     }
 
     private fun send(lamp: LampConfig, reload: Boolean = false, command: suspend () -> Unit) {
@@ -401,39 +506,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun readPipi(c: MiioClient): PipiState {
-        suspend fun read(siid: Int, piid: Int): Any? = c.get(siid, piid).also { delay(READ_GAP_MS) }
-        suspend fun int(siid: Int, piid: Int) = (read(siid, piid) as? Number)?.toInt() ?: 0
-        suspend fun flag(siid: Int, piid: Int) = asFlag(read(siid, piid))
+        // Small batches keep every answer well inside one UDP packet.
+        val values = HashMap<Pair<Int, Int>, Any?>()
+        PIPI_PROPS.chunked(READ_BATCH).forEach { batch ->
+            batch.zip(c.getAll(batch)).forEach { (prop, value) -> values[prop] = value }
+            delay(READ_GAP_MS)
+        }
+        fun read(siid: Int, piid: Int) = values[siid to piid]
+        fun int(siid: Int, piid: Int) = (read(siid, piid) as? Number)?.toInt() ?: 0
+        fun flag(siid: Int, piid: Int) = asFlag(read(siid, piid))
+        fun string(siid: Int, piid: Int) = (read(siid, piid) as? String).orEmpty()
         return PipiState(
             on = flag(2, 1),
-            mode = int(2, 2),
+            lightOn = flag(9, 2),
             brightness = int(2, 3).coerceIn(1, 100),
             colorTemp = int(2, 5).coerceIn(2700, 5700),
-            mood = int(3, 1),
+            modes = LightMode.parseList(string(4, 1)),
+            mood = (read(3, 1) as? Number)?.toInt() ?: -1,
+            birthday = string(3, 2),
             personality = int(3, 3),
-            gesturesOn = flag(7, 1),
+            interactionOn = flag(7, 1),
             followOn = flag(7, 3),
             lastGesture = int(7, 2),
             timerOn = flag(6, 4),
             timerMinutes = int(6, 5),
             timerLeft = int(6, 6),
-            firmware = read(1, 4)?.toString().orEmpty(),
-            motions = parseMotions(read(5, 3) as? String),
+            schedules = Schedule.parseList(string(6, 2)),
+            faults = parseFaults(string(9, 1)),
+            firmware = string(1, 4),
+            motions = LampMotion.parseList(string(5, 3)).map { motion ->
+                val fixed = MOTION_NAMES[motion.id]?.takeIf { motion.builtIn }
+                Motion(motion.id, fixed?.let { text(it) } ?: motion.name, custom = !motion.builtIn)
+            },
         )
     }
 
-    private fun parseMotions(raw: String?): List<Motion> =
-        raw.orEmpty().split(';').mapNotNull { item ->
-            val parts = item.split('-', limit = 3)
-            val id = parts.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
-            val name = MOTION_NAMES[id]?.let { text(it) } ?: parts.getOrNull(2)?.let { encoded ->
-                runCatching { String(Base64.decode(encoded, Base64.DEFAULT)) }.getOrNull()
-            } ?: text(R.string.motion_n, id)
-            Motion(id, name)
-        }
-
     private companion object {
         const val READ_GAP_MS = 60L
+        const val READ_BATCH = 8
+        val PIPI_PROPS = listOf(
+            2 to 1, 2 to 3, 2 to 5, 9 to 2, 9 to 1, 4 to 1, 5 to 3,
+            3 to 1, 3 to 2, 3 to 3, 7 to 1, 7 to 2, 7 to 3,
+            6 to 2, 6 to 4, 6 to 5, 6 to 6, 1 to 4,
+        )
         const val CALIBRATE_GAP_MS = 1000L
         const val STEER_INTERVAL_MS = 500L
         const val STEER_POLL_MS = 40L

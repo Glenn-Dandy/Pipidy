@@ -6,8 +6,9 @@ type in the menu. The script reads the token from the lamp, switches on LAN
 control (Yeelight) or shows the token (Pipi lamp), and sends the lamp the
 credentials of the Wi-Fi it should join.
 
-A factory-reset Pipi lamp only stays in the new Wi-Fi if it reaches the Xiaomi
-cloud afterwards; without internet it falls back to its setup Wi-Fi.
+A Pipi lamp only accepts control once it is bound to a Mi account in the Mi Home
+app (which needs internet once), so for it the script only reads the token of an
+already bound lamp that is on the network.
 
 Needs the Python package "cryptography".
 Usage: python3 lampe_offline.py [lamp ip]
@@ -172,15 +173,11 @@ def left_setup_wifi(host, seconds=45):
 
 def setup(choice, fixed_host, wifi):
     name, prefix, wifi_name, reset = KINDS[choice]
-    yeelight = choice == '1'
+    if choice == '2':
+        setup_pipi(name, fixed_host)
+        return
 
     heading(f'{name} einrichten')
-    if not yeelight:
-        bad('Eine zurückgesetzte Pipi-Lampe bleibt nur im WLAN, wenn sie danach die Xiaomi-Cloud')
-        note('erreicht. Ohne Internet fällt sie nach etwa zwei Minuten in ihr Einrichtungs-WLAN')
-        note('zurück und lässt sich dann nicht mehr steuern. Den Token bekommst du trotzdem.')
-        if not yes('Trotzdem weiter?', False):
-            raise Abort('Abgebrochen. Nichts geändert.')
     step(f'Lampe zurücksetzen: {reset}.')
     step(f'Diesen Rechner mit dem WLAN der Lampe verbinden ({wifi_name}, ohne Passwort).')
     ask('Weiter mit Enter, wenn der Rechner im WLAN der Lampe ist ... ')
@@ -218,16 +215,14 @@ def setup(choice, fixed_host, wifi):
     if not model.startswith(prefix) and not yes(f'Das sieht nicht nach einer {name} aus. Trotzdem weitermachen?', False):
         raise Abort('Abgebrochen. Nichts geändert.')
 
-    lan_control = None
-    if yeelight:
-        try:
-            lan_control = lamp.call('set_ps', ['cfg_lan_ctrl', '1']).get('result') == ['ok']
-        except (ValueError, TimeoutError):
-            lan_control = False
-        if lan_control:
-            good('LAN-Steuerung eingeschaltet.')
-        else:
-            bad('Die LAN-Steuerung ließ sich nicht einschalten. Das geht später noch mit dem gespeicherten Token.')
+    try:
+        lan_control = lamp.call('set_ps', ['cfg_lan_ctrl', '1']).get('result') == ['ok']
+    except (ValueError, TimeoutError):
+        lan_control = False
+    if lan_control:
+        good('LAN-Steuerung eingeschaltet.')
+    else:
+        bad('Die LAN-Steuerung ließ sich nicht einschalten. Das geht später noch mit dem gespeicherten Token.')
 
     if wifi and not yes(f"WLAN „{wifi['ssid']}“ wieder verwenden?", True):
         wifi.clear()
@@ -237,13 +232,8 @@ def setup(choice, fixed_host, wifi):
         if not ssid:
             raise Abort('Kein WLAN-Name eingegeben. Die Lampe bleibt in ihrem Einrichtungsmodus.')
         wifi.update(ssid=ssid, passwd=getpass.getpass(amber('  ? ') + 'Passwort (wird nicht angezeigt): '))
-    router = {'ssid': wifi['ssid'], 'passwd': wifi['passwd'], 'uid': 0}
-    if not yeelight:
-        # Newer firmware expects the same fields the Mi Home app sends.
-        router.update(bind_key='', config_type='app', country_domain='cn', wifi_config={'cc': 'CN'},
-                      gmt_offset=-time.timezone, tz='Europe/Berlin')
     try:
-        answer = lamp.call('miIO.config_router', router)
+        answer = lamp.call('miIO.config_router', {'ssid': wifi['ssid'], 'passwd': wifi['passwd'], 'uid': 0})
         log(f'{name} {did} config_router answer {json.dumps(answer)}')
         if answer.get('result') in (['ok'], 'ok'):
             good('Zugangsdaten gesendet, die Lampe hat sie angenommen.')
@@ -265,14 +255,65 @@ def setup(choice, fixed_host, wifi):
     good(f"Die Lampe meldet sich im WLAN „{wifi['ssid']}“ an.")
 
     print()
-    if yeelight:
-        if lan_control:
-            box([f'Alles okay: Yeelight {did}', 'LAN-Steuerung ist an.',
-                 'In Pipidy mit ihrer IP-Adresse eintragen.'], 'FERTIG')
+    if lan_control:
+        box([f'Alles okay: Yeelight {did}', 'LAN-Steuerung ist an.',
+             'In Pipidy mit ihrer IP-Adresse eintragen.'], 'FERTIG')
+
+
+def setup_pipi(name, fixed_host):
+    """A Pipi lamp only accepts control once bound to a Mi account, so here we just
+    read the token of an already bound lamp that is already on the network."""
+    heading(f'{name}: Token auslesen')
+    bad('Eine Pipi-Lampe nimmt Steuerbefehle nur an, wenn sie in der Mi-Home-App an')
+    note('ein Konto gebunden ist. Das Binden braucht einmal Internet. Dieses Skript')
+    note('richtet die Lampe nicht ein, es liest nur den Token einer bereits gebundenen')
+    note('Lampe, die schon in deinem WLAN hängt.')
+    print()
+    host = fixed_host or ask('IP-Adresse der Lampe im WLAN: ').strip()
+    if not host:
+        raise Abort('Keine IP-Adresse eingegeben.')
+    step(f'Lampe wird unter {host} gesucht ...')
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(2)
+    hello = exchange(sock, host, HELLO)
+    if hello is None or len(hello) < 32 or hello[:2] != b'\x21\x31':
+        raise Abort('Unter dieser Adresse antwortet keine Lampe.')
+    did = struct.unpack('>I', hello[8:12])[0]
+    token = hello[16:32]
+    good(f'Lampe gefunden, Geräte-ID {did}.')
+
+    if token in (b'\xff' * 16, b'\x00' * 16):
+        box(['Diese Lampe gibt ihren Token nicht preis (verdeckt).',
+             'Bei gebundenen Lampen ist das normal. Hol den Token',
+             'aus deinem Mi-Konto (Xiaomi Cloud Tokens Extractor)',
+             f'und trag ihn mit der IP {host}',
+             'von Hand in Pipidy ein.', '',
+             f'Geräte-ID: {did}'], 'TOKEN VERDECKT')
         return
 
-    box([f'Pipi-Lampe {did}', '', 'Token für Pipidy:', token.hex(), '',
-         'In Pipidy mit IP-Adresse und diesem Token eintragen.'], 'FERTIG')
+    # A bound lamp answers get_properties; an unbound one refuses with error -30015.
+    controllable = None
+    try:
+        reply = Lamp(host, token).call('get_properties', [{'siid': 2, 'piid': 1}])
+        controllable = 'error' not in reply
+    except (ValueError, TimeoutError):
+        controllable = None
+    path = os.path.expanduser(f'~/miio-{did}.token')
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.write(fd, token.hex().encode())
+    os.close(fd)
+    log(f'{name} {did} token read, controllable {controllable}')
+
+    print()
+    if controllable:
+        box([f'Pipi-Lampe {did} ist gebunden und steuerbar.', '',
+             'Token für Pipidy:', token.hex(), '',
+             f'In Pipidy mit IP {host} und diesem Token eintragen.'], 'FERTIG')
+    else:
+        box([f'Pipi-Lampe {did} antwortet, lehnt Steuerung aber ab.',
+             'Sie ist noch nicht in Mi Home an ein Konto gebunden.',
+             'Erst in Mi Home hinzufügen, dann hier erneut auslesen.', '',
+             'Token dieser Runde:', token.hex()], 'NOCH NICHT GEBUNDEN')
 
 
 def main():
